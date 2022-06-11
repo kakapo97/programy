@@ -1,0 +1,128 @@
+import random
+import numpy as np
+
+xor_input_data = [[0, 0], #nauk
+                  [0, 1],
+                  [1, 0],
+                  [1, 1]]
+
+xor_expected_out = [0,
+                    1,
+                    1,
+                    0]
+
+
+def rand(): #los liczb
+    return 1.0 - 2.0 * random.random()
+
+
+def create_neuron(input_size): #zwraca pojedynczy neuron
+    weights = [rand() for i in range(input_size)]
+    return np.array(weights) # zw. wagi jako tab
+
+
+def create_layer(input_size, neurons): # zwraca pojedyncza warstwe
+    layer = []
+    for i in range(neurons):
+        layer.append(create_neuron(input_size))
+    return layer
+
+
+def create_network():
+    input_size = 3
+    hidden_neurons = 2
+    output_neurons = 1
+    return [create_layer(input_size, hidden_neurons),
+            create_layer(hidden_neurons + 1, output_neurons)]
+
+
+def train_network(network, B, u, data, target_output): # propagowanie bledu i poprawiania wag neuronow w sieci
+    input_data = data[:] #kop listy wart. wej
+    input_data.append(1)
+
+    weights1 = np.row_stack((network[0][0], network[0][1])) #wagi 1 warstwy
+    weights2 = network[1][0]
+
+    layer1 = weights1 * input_data
+    layer1 = np.sum(layer1, 1) #k
+    layer1 = np.append(layer1, 1)
+    layer1 = 1.0 / (1.0 + np.exp(-B*layer1)) #dla  kaz wagi liczy war funkcji
+
+    layer2 = layer1 * weights2 #2 warstwy przez dane 1 warstwy
+    layer2 = np.sum(layer2, 0)
+    layer2 = 1.0 / (1.0 + np.exp(-B*layer2))
+
+    delta2 = B * (target_output - layer2) #blad wyjscia z sieci
+    delta1 = np.multiply(layer1, B * (1 - layer1)) # pochodne dla wszytkich wartosci wyjsciowych
+    delta1 = np.multiply(delta1, (weights2 * delta2)) #*pochodne razy bledy nastepnej warstwy
+    delta1 = np.delete(delta1, -1, axis=0) # usuwamy delte wagi dla bias'u
+
+    weights2_delta = layer1 * delta2 # delta dla warstwy ostatniej
+    weights1_delta = np.row_stack((input_data, input_data)) #m d
+    delta1 = np.column_stack((delta1, delta1, delta1))
+    weights1_delta = np.multiply(weights1_delta, delta1) # wyliczamy delte dla wag warstwy 1
+
+    weights1 = weights1 + u * weights1_delta #+dla wag w 1
+    weights2 = weights2 + u * weights2_delta
+
+    return [[np.array(weights1[0]), np.array(weights1[1])], [np.array(weights2)]]
+
+
+
+def train(network, data, expected, epoch=20000, B=1.0, u=0.1):
+    data_len = len(data) # dł zb. danych
+    iterations = [i for i in range(data_len)] # 0 do data_len odwołanie do konkretnego wiersza wejsciowych i odpowiadajacego mu wiersza spodziewanej wartosci
+
+    for _ in range(epoch):
+        random.shuffle(iterations)  # mieszamy kolejne wiersze w naszym zbiorze tak zeby przy kazdej epoce brac je losowo
+        for row in iterations: # iterujemy po wymieszanych wierszach
+            input_data = data[row] #d. wej
+            target = expected[row] #sp. wyn
+            network = train_network(network, B, u, input_data, target)
+    return network
+
+# funkcja na bazie wyuczonych wartsw i zbioru danych zwraca przewidywany wynik
+def predict(network, data, B=1.0):
+    input_data = data[:]
+    input_data.append(1)
+
+    weights1 = np.row_stack((network[0][0], network[0][1])) # rozw. wagi 1 warstwy
+    weights2 = network[1][0]
+
+    layer1 = weights1 * input_data
+    layer1 = np.sum(layer1, 1)
+    layer1 = np.append(layer1, 1) #b
+    layer1 = 1.0 / (1.0 + np.exp(-B*layer1)) # dla kazdej wagi mnozymy wart. funk
+
+    layer2 = layer1 * weights2
+    layer2 = np.sum(layer2, 0)
+    output = 1.0 / (1.0 + np.exp(-B*layer2)) # wykonujemy funkcje na wyjsciu drugiej warstwy co daje wynik
+
+    return output
+
+
+def print_network(network):
+    i = 1
+    for layer in network:
+        j = 1
+        print(f'Wartswa {i}')
+        i += 1
+        for neuron in layer:
+            print(f'Neuron {j}: {neuron}')
+            j += 1
+
+
+network = create_network()
+print_network(network)
+print(f'[0, 0] -> {predict(network, [0, 0])}')
+print(f'[0, 1] -> {predict(network, [0, 1])}')
+print(f'[1, 0] -> {predict(network, [1, 0])}')
+print(f'[1, 1] -> {predict(network, [1, 1])}')
+
+network = train(network, xor_input_data, xor_expected_out, 20000, 1.0, 0.10)
+
+print_network(network)
+print(f'[0, 0] -> {predict(network, [0, 0])}')
+print(f'[0, 1] -> {predict(network, [0, 1])}')
+print(f'[1, 0] -> {predict(network, [1, 0])}')
+print(f'[1, 1] -> {predict(network, [1, 1])}')

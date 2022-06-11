@@ -1,0 +1,138 @@
+import numpy as np
+
+
+# Funkcja pomocnicza do konwersji calej listy wartosci na liczby zmiennoprzecinkowe
+def to_float(values):
+    result = []
+    for value in values: #all wartosci
+        result.append(float(value)) # zam wartosc na liczbe zmienno przecinkowa i dod do listy
+    return result
+
+
+def load_data():
+    with open('iris.txt', 'r') as file:
+        data = file.read()
+    data_rows = data.split('\n')
+    data = []
+    targets = []
+    for row in data_rows:
+        if row:
+            values = row.split('\t')
+            values = to_float(values) # dzieli wiersz ze wzgledu na znak tabulacji
+            data.append(values[:-1]) # dodaje lite wszytkich wartosci procz ostatnije
+            targets.append(int(values[-1]))
+    return data, targets
+
+
+def normalize(data):
+    mins = np.array([min(idx) for idx in zip(*data)]) # min z kolumn
+    maxes = np.array([max(idx) for idx in zip(*data)])  # max
+    difference = maxes - mins
+
+    result = []
+    for row in data:
+        normalized = (np.array(row) - mins) / difference
+        result.append(normalized) # dodaj do wynikow
+    return result
+
+
+def most_frequent(values):
+    values, counts = np.unique(values, return_counts=True) # zlicz powtarzalnosc znaku
+    index = np.argmax(counts) # index znaku najczesciej powtarzanego
+    return values[index] # wartosc pod indexem znaku
+
+
+def manhattan(k, element, data, targets):
+    values = [] # wart. na wyniki
+    for sample in data:
+        result = sum(abs(element - sample))
+        values.append(result)
+    indecies = np.argpartition(values, -k)[:k] # seg rosn k pr. i bierze indexy na ktrych k sa pierwsze
+    targets = np.array(targets)
+    result_targets = targets[indecies]
+    return most_frequent(result_targets)  # zwroc najcz. wyst. pr
+
+
+def euklides(k, element, data, targets):
+    values = []
+    for sample in data:
+        result = np.sqrt(sum(pow(element - sample, 2)))
+        values.append(result)
+    indecies = np.argpartition(values, -k)[:k]
+    targets = np.array(targets) #lista na tablice
+    result_targets = targets[indecies] # probki spod indexow z najm. wart.
+    return most_frequent(result_targets)
+
+
+
+def czebyszew(k, element, data, targets):
+    values = []
+    for sample in data:
+        result = max(abs(element - sample))
+        values.append(result)
+    indecies = np.argpartition(values, -k)[:k]
+    targets = np.array(targets)
+    result_targets = targets[indecies]
+    return most_frequent(result_targets)
+
+
+def logarytm(k, element, data, targets):
+    values = []
+    for sample in data:
+        result = sum(abs(np.log(element) - np.log(sample)))
+        values.append(result)
+    indecies = np.argpartition(values, -k)[:k]
+    targets = np.array(targets)
+    result_targets = targets[indecies]
+    return most_frequent(result_targets)
+
+
+def one_vs_all(classifier, k, data, targets):
+    classified = [] # lista klasyfikacji dla kolejnych probek
+    for i in range(len(data)): # lda mkazdej probki
+        element = data[i] # wez probke
+        data_without_element = data[:i] + data[i + 1:] # tworzymy liste danych z probek pozostalych
+        targets_without_element = targets[:i] + targets[i + 1:] # tw. liste etykiet
+        result_target = classifier(k, element, data_without_element, targets_without_element) # sz. klasy
+        classified.append(result_target) # dodaje wykryta przy pomocy podanej metryki klase
+
+    classified = np.array(classified) # list. na tabl.
+    targets = np.array(targets) #zamienia list rzeczywistych. kl na tabl
+    correct = sum(classified == targets) # sumujemy wszystkie pola dla ktorych znaleziona klasa jest rowna klasie rzeczywistej
+    incorrect = len(targets) - correct
+    ratio = correct / len(targets)
+    return correct, incorrect, ratio
+
+
+def sum_up(results):
+    results.sort(key=lambda x: x[2], reverse=True)
+    print("================================================")
+    print("Metryka    K   Poprawne  Niepoprawne  Procentowo")
+    c1_s = 11
+    c2_s = 4
+    c3_s = 10
+    c4_s = 13
+
+    for result in results:
+        metrics = result[0].ljust(c1_s)
+        k = str(result[1]).ljust(c2_s)
+        correct = str(result[2]).ljust(c3_s)
+        incorrect = str(result[3]).ljust(c4_s)
+        ratio = result[4]
+        print(f'{metrics}{k}{correct}{incorrect}{ratio}%')
+    print("================================================")
+
+
+data, targets = load_data()
+data = normalize(data)
+
+results = []
+K = [3, 4, 5, 6, 7, 9, 11, 13]
+classifiers = [manhattan, euklides, czebyszew, logarytm]
+
+for classifier in classifiers:
+    for k in K:
+        correct, incorrect, ratio = one_vs_all(classifier, k, data, targets)
+        results.append([classifier.__name__, k, correct, incorrect, ratio])
+
+sum_up(results)
